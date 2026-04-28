@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#080810">
+  <title>HAND DUEL</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:    #080810;
+      --bg2:   #0d0d20;
+      --cyan:  #3effd8;
+      --gold:  #ffc840;
+      --red:   #ff3b5c;
+      --dim:   #181830;
+      --text:  #d8d8f0;
+      --muted: #484870;
+      --gc:    rgba(62,255,216,.22);
+      --gr:    rgba(255,59,92,.22);
+      --circ:  138.23; /* 2π × 22, used for SVG ring */
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(62,255,216,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(62,255,216,.035) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+
+    /* ─── LOADING ─────────────────────────────────────────────────── */
+    #loading {
+      position: fixed; inset: 0; z-index: 200;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 28px;
+      background: var(--bg);
+    }
+    .logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3.5rem, 18vw, 7rem);
+      letter-spacing: .12em;
+      color: var(--cyan);
+      text-shadow: 0 0 30px var(--cyan), 0 0 80px rgba(62,255,216,.3);
+    }
+    .logo span { color: var(--gold); text-shadow: 0 0 30px var(--gold); }
+    .load-sub  { font-size: .7rem; letter-spacing: .25em; text-transform: uppercase; color: var(--muted); }
+    .load-track{ width: 220px; height: 2px; background: var(--dim); overflow: hidden; }
+    .load-fill { height: 100%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); width: 0%; transition: width .2s ease; }
+
+    /* ─── PERMISSION ──────────────────────────────────────────────── */
+    #perm {
+      position: fixed; inset: 0; z-index: 150;
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 20px;
+      background: var(--bg); padding: 40px; text-align: center;
+    }
+    .perm-icon  { font-size: 3.5rem; }
+    .perm-title { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: .1em; color: var(--cyan); }
+    .perm-body  { font-size: .8rem; color: var(--muted); line-height: 1.7; max-width: 280px; }
+    #perm-err   { font-size: .72rem; color: var(--red); }
+    .btn {
+      padding: 16px 44px;
+      background: transparent;
+      border: 1.5px solid var(--cyan); border-radius: 3px;
+      color: var(--cyan);
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: .15em;
+      cursor: pointer;
+      box-shadow: 0 0 18px var(--gc), inset 0 0 18px rgba(62,255,216,.04);
+      transition: background .15s, box-shadow .15s;
+    }
+    .btn:active { background: rgba(62,255,216,.12); box-shadow: 0 0 36px var(--gc); }
+
+    /* ─── GAME LAYOUT ─────────────────────────────────────────────── */
+    #game {
+      position: fixed; inset: 0; z-index: 10;
+      display: none; flex-direction: column;
+    }
+
+    /* ── Score bar ── */
+    #scorebar {
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: calc(env(safe-area-inset-top, 0px) + 10px) 24px 10px;
+      background: var(--bg2);
+      border-bottom: 1px solid rgba(62,255,216,.1);
+      z-index: 20;
+    }
+    .score-col  { text-align: center; min-width: 56px; }
+    .score-who  { font-size: .58rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+    .score-val  { font-family: 'Bebas Neue', sans-serif; font-size: 2.4rem; line-height: 1; }
+    .score-val.p { color: var(--cyan); text-shadow: 0 0 14px var(--cyan); }
+    .score-val.c { color: var(--red);  text-shadow: 0 0 14px var(--red); }
+    #round-badge {
+      font-size: .6rem; letter-spacing: .2em; text-transform: uppercase;
+      color: var(--muted); text-align: center;
+    }
+    #round-badge span { color: var(--text); }
+
+    /* ── CPU Panel ── */
+    #cpu-panel {
+      flex-shrink: 0;
+      height: 200px;
+      background: var(--bg2);
+      border-bottom: 1px solid rgba(62,255,216,.1);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 8px;
+      position: relative; overflow: hidden;
+    }
+    /* scanlines on cpu panel */
+    #cpu-panel::after {
+      content: '';
+      position: absolute; inset: 0; pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom, transparent 0, transparent 2px,
+        rgba(0,0,0,.12) 2px, rgba(0,0,0,.12) 4px
+      );
+    }
+    .cpu-label {
+      font-size: .6rem; letter-spacing: .25em; text-transform: uppercase; color: var(--muted);
+      position: relative; z-index: 1;
+    }
+    #cpu-emoji {
+      font-size: 5rem; line-height: 1;
+      position: relative; z-index: 1;
+      transition: transform .15s;
+      filter: drop-shadow(0 0 16px rgba(62,255,216,.4));
+    }
+    #cpu-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.5rem; letter-spacing: .15em;
+      position: relative; z-index: 1;
+      color: var(--cyan);
+      min-height: 1.8rem;
+    }
+
+    /* glow burst when CPU reveals */
+    #cpu-panel.reveal::before {
+      content: '';
+      position: absolute; inset: 0;
+      animation: burstFade .5s ease-out forwards;
+    }
+    #cpu-panel.reveal.win::before  { background: radial-gradient(ellipse at center, rgba(62,255,216,.25) 0%, transparent 70%); }
+    #cpu-panel.reveal.lose::before { background: radial-gradient(ellipse at center, rgba(255,59,92,.25) 0%, transparent 70%); }
+    #cpu-panel.reveal.draw::before { background: radial-gradient(ellipse at center, rgba(255,200,64,.2) 0%, transparent 70%); }
+    @keyframes burstFade { 0%{opacity:1} 100%{opacity:0} }
+
+    /* ── Camera feed ── */
+    #cam {
+      flex: 1;
+      position: relative; overflow: hidden; background: #000;
+      min-height: 0;
+    }
+    #video  { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    #canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1); }
+
+    /* scanlines */
+    #cam::after {
+      content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 5;
+      background: repeating-linear-gradient(
+        to bottom, transparent 0, transparent 2px, rgba(0,0,0,.12) 2px, rgba(0,0,0,.12) 4px
+      );
+    }
+    /* corner frame */
+    #cam-frame {
+      position: absolute; inset: 8px; pointer-events: none; z-index: 6;
+      border: 1px solid rgba(62,255,216,.12); border-radius: 2px;
+    }
+
+    /* flip button */
+    #flip-btn {
+      position: absolute; top: 10px; right: 10px; z-index: 15;
+      background: rgba(8,8,16,.7); border: 1px solid rgba(62,255,216,.2);
+      border-radius: 50%; width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 1.1rem; color: var(--text);
+    }
+
+    /* countdown overlay */
+    #count-overlay {
+      position: absolute; inset: 0; z-index: 20;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    .count-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(6rem, 32vw, 11rem); line-height: 1;
+      color: var(--cyan);
+      text-shadow: 0 0 60px var(--cyan), 0 0 120px rgba(62,255,216,.35);
+      animation: popIn .4s cubic-bezier(.17,.89,.32,1.25);
+    }
+    .shoot-word {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3rem, 16vw, 6rem); letter-spacing: .14em;
+      color: var(--gold);
+      text-shadow: 0 0 40px var(--gold), 0 0 80px rgba(255,200,64,.3);
+      animation: glitch .35s steps(2);
+    }
+    @keyframes popIn {
+      0%  { transform: scale(1.7); opacity: 0; }
+      100%{ transform: scale(1);   opacity: 1; }
+    }
+    @keyframes glitch {
+      0%  { transform: translateX(0)  skewX(0deg); }
+      20% { transform: translateX(-7px) skewX(-5deg); }
+      50% { transform: translateX(7px)  skewX(5deg); }
+      80% { transform: translateX(-3px) skewX(-2deg); }
+      100%{ transform: translateX(0)  skewX(0deg); }
+    }
+
+    /* result overlay */
+    #result-overlay {
+      position: absolute; inset: 0; z-index: 25;
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+      background: rgba(8,8,16,.82);
+      backdrop-filter: blur(3px);
+    }
+    .result-word {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(4rem, 20vw, 8rem); letter-spacing: .07em;
+      animation: glitch .4s steps(2);
+    }
+    .result-word.win  { color: var(--cyan); text-shadow: 0 0 50px var(--cyan); }
+    .result-word.lose { color: var(--red);  text-shadow: 0 0 50px var(--red); }
+    .result-word.draw { color: var(--gold); text-shadow: 0 0 50px var(--gold); }
+    .result-note {
+      font-size: .72rem; letter-spacing: .12em; color: var(--muted); text-align: center;
+    }
+    .restart-hint {
+      margin-top: 8px;
+      font-size: .7rem; letter-spacing: .18em; text-transform: uppercase;
+      color: rgba(62,255,216,.6);
+      animation: fadeInUp .4s .5s both ease;
+    }
+    @keyframes fadeInUp {
+      0%  { opacity: 0; transform: translateY(8px); }
+      100%{ opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Bottom bar ── */
+    #bottombar {
+      flex-shrink: 0;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px));
+      background: var(--bg2);
+      border-top: 1px solid rgba(62,255,216,.1);
+      z-index: 20;
+    }
+
+    /* hold indicator row */
+    #hold-row {
+      display: flex; align-items: center; gap: 12px;
+      width: 100%; max-width: 340px;
+    }
+
+    /* gesture pill */
+    #gesture-pill {
+      position: relative; overflow: hidden;
+      display: flex; align-items: center; gap: 9px;
+      background: rgba(62,255,216,.07);
+      border: 1px solid rgba(62,255,216,.18);
+      border-radius: 100px; padding: 8px 18px;
+      flex: 1; min-width: 0;
+      transition: border-color .2s;
+    }
+    #gesture-pill.active { border-color: rgba(62,255,216,.55); }
+    #hold-fill {
+      position: absolute; left: 0; top: 0; bottom: 0;
+      background: rgba(62,255,216,.14);
+      width: 0%; transition: width .08s linear;
+      border-radius: 100px;
+    }
+    .pulse-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; z-index: 1;
+      background: var(--cyan); box-shadow: 0 0 6px var(--cyan);
+      animation: blink 1.2s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.22} }
+    #gesture-label {
+      font-size: .72rem; letter-spacing: .16em; text-transform: uppercase;
+      color: var(--cyan); white-space: nowrap; overflow: hidden;
+      text-overflow: ellipsis; z-index: 1;
+    }
+
+    /* hold ring (SVG) */
+    #hold-ring-wrap {
+      flex-shrink: 0; width: 44px; height: 44px;
+    }
+    #hold-ring-wrap svg { width: 100%; height: 100%; }
+    #hold-arc {
+      stroke-dasharray: 138.23;
+      stroke-dashoffset: 138.23;
+      transition: stroke-dashoffset .08s linear;
+    }
+
+    /* hint text */
+    #hint {
+      font-size: .65rem; letter-spacing: .18em; text-transform: uppercase;
+      color: var(--muted); text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <div class="logo">HAND<span>DUEL</span></div>
+  <div class="load-sub" id="load-msg">Initializing gesture engine</div>
+  <div class="load-track"><div class="load-fill" id="load-bar"></div></div>
+</div>
+
+<!-- Permission -->
+<div id="perm">
+  <div class="perm-icon">📷</div>
+  <div class="perm-title">Camera Required</div>
+  <div class="perm-body">This game reads your hand gestures in real time. Nothing is recorded or transmitted.</div>
+  <button class="btn" id="perm-btn">Enable Camera</button>
+  <div id="perm-err"></div>
+</div>
+
+<!-- Game -->
+<div id="game">
+
+  <!-- Score bar -->
+  <div id="scorebar">
+    <div class="score-col">
+      <div class="score-who">You</div>
+      <div class="score-val p" id="p-score">0</div>
+    </div>
+    <div id="round-badge">Round <span id="round-num">1</span></div>
+    <div class="score-col">
+      <div class="score-who">CPU</div>
+      <div class="score-val c" id="c-score">0</div>
+    </div>
+  </div>
+
+  <!-- CPU display panel -->
+  <div id="cpu-panel">
+    <div class="cpu-label">CPU</div>
+    <div id="cpu-emoji">❓</div>
+    <div id="cpu-name"></div>
+  </div>
+
+  <!-- Camera feed -->
+  <div id="cam">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <div id="cam-frame"></div>
+    <button id="flip-btn" title="Switch camera">⟳</button>
+    <div id="count-overlay"></div>
+    <div id="result-overlay"></div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div id="bottombar">
+    <div id="hold-row">
+      <div id="gesture-pill">
+        <div id="hold-fill"></div>
+        <div class="pulse-dot"></div>
+        <div id="gesture-label">No hand detected</div>
+      </div>
+      <!-- SVG hold ring -->
+      <div id="hold-ring-wrap">
+        <svg viewBox="0 0 50 50">
+          <circle cx="25" cy="25" r="22" fill="none" stroke="rgba(62,255,216,.12)" stroke-width="2.5"/>
+          <circle id="hold-arc" cx="25" cy="25" r="22"
+            fill="none" stroke="var(--cyan)" stroke-width="2.5"
+            stroke-linecap="round"
+            transform="rotate(-90 25 25)"/>
+        </svg>
+      </div>
+    </div>
+    <div id="hint">Hold a gesture to start</div>
+  </div>
+
+</div>
+
+<script type="module">
+import {
+  HandLandmarker, FilesetResolver, DrawingUtils
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const HOLD_MS   = 1500;  // ms to hold gesture before round starts
+const CIRC      = 2 * Math.PI * 22; // SVG ring circumference
+const CPU_CYCLE = ['✊','🖐️','✌️'];
+const NAMES     = { rock: 'ROCK', paper: 'PAPER', scissors: 'SCISSORS' };
+const ICONS     = { rock: '✊', paper: '🖐️', scissors: '✌️' };
+const CHOICES   = ['rock', 'paper', 'scissors'];
+
+// ─── State ────────────────────────────────────────────────────────────────────
+const S = {
+  landmarker: null, drawing: null,
+  lastTime: -1,
+  gesture: null,
+  holdStart: null,
+  holdGesture: null,
+  phase: 'idle',   // idle | holding | countdown | result
+  pScore: 0, cScore: 0, round: 1,
+  facingMode: 'user', stream: null,
+  cpuInterval: null,
+};
+
+// ─── Elements ─────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const $load       = $('loading');
+const $loadBar    = $('load-bar');
+const $loadMsg    = $('load-msg');
+const $perm       = $('perm');
+const $permBtn    = $('perm-btn');
+const $permErr    = $('perm-err');
+const $game       = $('game');
+const $video      = $('video');
+const $canvas     = $('canvas');
+const $countOv    = $('count-overlay');
+const $resultOv   = $('result-overlay');
+const $cpuPanel   = $('cpu-panel');
+const $cpuEmoji   = $('cpu-emoji');
+const $cpuName    = $('cpu-name');
+const $pill       = $('gesture-pill');
+const $holdFill   = $('hold-fill');
+const $holdArc    = $('hold-arc');
+const $glabel     = $('gesture-label');
+const $hint       = $('hint');
+const $pScore     = $('p-score');
+const $cScore     = $('c-score');
+const $roundNum   = $('round-num');
+const $flipBtn    = $('flip-btn');
+
+const ctx = $canvas.getContext('2d');
+
+// ─── Gesture detection ────────────────────────────────────────────────────────
+const fingerUp = (lm, tip, pip) => lm[tip].y < lm[pip].y;
+
+function classify(lm) {
+  const idx  = fingerUp(lm, 8, 6);
+  const mid  = fingerUp(lm, 12, 10);
+  const ring = fingerUp(lm, 16, 14);
+  const pnk  = fingerUp(lm, 20, 18);
+  const n = [idx, mid, ring, pnk].filter(Boolean).length;
+  if (n === 0)                         return 'rock';
+  if (n >= 3)                          return 'paper';
+  if (idx && mid && !ring && !pnk)     return 'scissors';
+  return null;
+}
+
+// ─── UI helpers ───────────────────────────────────────────────────────────────
+function setHold(pct) {
+  $holdFill.style.width = (pct * 100) + '%';
+  $holdArc.style.strokeDashoffset = CIRC * (1 - pct);
+}
+
+function setCPU(emoji, name, extraClass = '') {
+  $cpuEmoji.textContent = emoji;
+  $cpuName.textContent  = name;
+  $cpuPanel.className   = extraClass;
+}
+
+function startCPUCycle() {
+  let i = 0;
+  S.cpuInterval = setInterval(() => {
+    $cpuEmoji.textContent = CPU_CYCLE[i++ % 3];
+  }, 180);
+}
+
+function stopCPUCycle() {
+  clearInterval(S.cpuInterval);
+  S.cpuInterval = null;
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ─── Game logic ───────────────────────────────────────────────────────────────
+function outcome(p, c) {
+  if (p === c) return 'draw';
+  if ((p==='rock'&&c==='scissors')||(p==='scissors'&&c==='paper')||(p==='paper'&&c==='rock'))
+    return 'win';
+  return 'lose';
+}
+
+async function playRound() {
+  S.phase = 'countdown';
+  $hint.textContent = '';
+  setHold(0);
+  $pill.classList.remove('active');
+
+  // CPU starts cycling
+  setCPU('❓', '');
+  startCPUCycle();
+
+  // Countdown
+  for (const n of [3, 2, 1]) {
+    $countOv.innerHTML = `<div class="count-num">${n}</div>`;
+    await sleep(750);
+  }
+  $countOv.innerHTML = `<div class="shoot-word">SHOOT!</div>`;
+
+  // Capture player gesture at SHOOT
+  const captured = S.gesture;
+  await sleep(500);
+  $countOv.innerHTML = '';
+  stopCPUCycle();
+
+  // CPU picks
+  const cpu = CHOICES[Math.floor(Math.random() * 3)];
+  const out  = captured ? outcome(captured, cpu) : 'lose';
+
+  // Update score
+  if (out === 'win')  { S.pScore++; $pScore.textContent = S.pScore; }
+  if (out === 'lose') { S.cScore++; $cScore.textContent = S.cScore; }
+
+  // Reveal CPU choice with panel flash
+  setCPU(ICONS[cpu], NAMES[cpu], `reveal ${out}`);
+  // Trigger reflow so animation replays
+  void $cpuPanel.offsetWidth;
+
+  // Result overlay
+  const labels   = { win: 'YOU WIN', lose: 'YOU LOSE', draw: 'DRAW' };
+  const pIcon    = captured ? ICONS[captured] : '❓';
+  const pName    = captured ? NAMES[captured] : '—';
+  const noteText = !captured ? 'No gesture detected' : '';
+
+  $resultOv.innerHTML = `
+    <div class="result-word ${out}">${labels[out]}</div>
+    <div style="display:flex;gap:32px;align-items:center">
+      <div style="text-align:center">
+        <div style="font-size:2.8rem">${pIcon}</div>
+        <div style="font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-top:4px">You · ${pName}</div>
+      </div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--muted)">VS</div>
+      <div style="text-align:center">
+        <div style="font-size:2.8rem">${ICONS[cpu]}</div>
+        <div style="font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-top:4px">CPU · ${NAMES[cpu]}</div>
+      </div>
+    </div>
+    ${noteText ? `<div class="result-note">${noteText}</div>` : ''}
+    <div class="restart-hint">Hold any gesture to play again</div>
+  `;
+  $resultOv.style.display = 'flex';
+
+  S.round++;
+  $roundNum.textContent = S.round;
+
+  // Wait, then allow restart
+  await sleep(1000);
+  S.phase = 'result';
+  $hint.textContent = 'Hold a gesture to play again';
+}
+
+// ─── Detection loop ───────────────────────────────────────────────────────────
+function detectLoop() {
+  if ($video.readyState < 2) { requestAnimationFrame(detectLoop); return; }
+
+  const vw = $video.videoWidth  || $canvas.offsetWidth;
+  const vh = $video.videoHeight || $canvas.offsetHeight;
+  if ($canvas.width !== vw || $canvas.height !== vh) {
+    $canvas.width = vw; $canvas.height = vh;
+  }
+
+  const now = performance.now();
+  if (S.lastTime !== $video.currentTime) {
+    S.lastTime = $video.currentTime;
+    const res = S.landmarker.detectForVideo($video, now);
+
+    ctx.clearRect(0, 0, $canvas.width, $canvas.height);
+
+    if (res.landmarks?.length) {
+      const lm = res.landmarks[0];
+      S.drawing.drawConnectors(lm, HandLandmarker.HAND_CONNECTIONS, {
+        color: 'rgba(62,255,216,.4)', lineWidth: 2,
+      });
+      S.drawing.drawLandmarks(lm, {
+        color: 'rgba(62,255,216,.85)', fillColor: 'rgba(8,8,16,.7)',
+        lineWidth: 1, radius: 4,
+      });
+      S.gesture = classify(lm);
+    } else {
+      S.gesture = null;
+    }
+
+    // Gesture pill UI
+    if (S.gesture) {
+      $glabel.textContent = `${ICONS[S.gesture]} ${NAMES[S.gesture]}`;
+      $pill.classList.add('active');
+    } else {
+      $glabel.textContent = 'No hand detected';
+      $pill.classList.remove('active');
+    }
+
+    // Hold-to-start logic
+    if (S.phase === 'idle' || S.phase === 'result') {
+      if (S.gesture) {
+        if (S.gesture !== S.holdGesture) {
+          S.holdStart   = Date.now();
+          S.holdGesture = S.gesture;
+        }
+        const pct = Math.min((Date.now() - S.holdStart) / HOLD_MS, 1);
+        setHold(pct);
+
+        if (pct >= 1) {
+          $resultOv.style.display = 'none';
+          setHold(0);
+          playRound();
+        }
+      } else {
+        S.holdStart = null; S.holdGesture = null;
+        setHold(0);
+      }
+    } else {
+      S.holdStart = null; S.holdGesture = null;
+    }
+  }
+
+  requestAnimationFrame(detectLoop);
+}
+
+// ─── Camera ───────────────────────────────────────────────────────────────────
+async function startCamera(facing = 'user') {
+  if (S.stream) S.stream.getTracks().forEach(t => t.stop());
+  try {
+    S.stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    });
+    S.facingMode = facing;
+    $video.srcObject = S.stream;
+    const flip = facing === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
+    $video.style.transform  = flip;
+    $canvas.style.transform = flip;
+    return true;
+  } catch { return false; }
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+async function boot() {
+  let p = 0;
+  const tick = setInterval(() => {
+    p = Math.min(p + Math.random() * 6, 82);
+    $loadBar.style.width = p + '%';
+  }, 80);
+
+  try {
+    $loadMsg.textContent = 'Loading vision engine…';
+    const vision = await FilesetResolver.forVisionTasks(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+    );
+    $loadMsg.textContent = 'Loading hand model…';
+    S.landmarker = await HandLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+        delegate: 'GPU',
+      },
+      runningMode: 'VIDEO',
+      numHands: 1,
+    });
+    clearInterval(tick);
+    $loadBar.style.width = '100%';
+    $loadMsg.textContent = 'Ready!';
+    await sleep(350);
+    $load.style.display = 'none';
+
+    const ok = await startCamera('user');
+    if (!ok) {
+      $perm.style.display = 'flex';
+      $permBtn.addEventListener('click', async () => {
+        $permErr.textContent = '';
+        if (await startCamera('user')) { $perm.style.display = 'none'; launch(); }
+        else $permErr.textContent = 'Camera denied — please allow access in browser settings.';
+      });
+      return;
+    }
+    launch();
+  } catch (err) {
+    clearInterval(tick);
+    $loadMsg.textContent = 'Error: ' + err.message;
+    $loadBar.style.background = 'var(--red)';
+  }
+}
+
+function launch() {
+  $game.style.display = 'flex';
+  S.drawing = new DrawingUtils(ctx);
+  $flipBtn.addEventListener('click', () =>
+    startCamera(S.facingMode === 'user' ? 'environment' : 'user')
+  );
+  // Initial CPU panel state
+  setCPU('❓', 'Waiting…');
+  detectLoop();
+}
+
+boot();
+</script>
+</body>
+</html>
