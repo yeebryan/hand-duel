@@ -516,9 +516,10 @@ async function playRound() {
   }
   $countOv.innerHTML = `<div class="shoot-word">SHOOT!</div>`;
 
-  // Capture player gesture at SHOOT
+  // Brief window so a last-second gesture change has time to register
+  await sleep(250);
   const captured = S.gesture;
-  await sleep(500);
+  await sleep(250);
   $countOv.innerHTML = '';
   stopCPUCycle();
 
